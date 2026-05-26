@@ -85,3 +85,37 @@
   prevents the bar from overflowing its container if someone logs more than
   the goal, which would otherwise break the layout silently.
 
+## Task 7 — Weekly bar chart by subject
+- Brief: Render total minutes per subject for the last 7 days as a stacked
+  bar chart using Chart.js.
+- What Claude proposed: Stacked bar chart with a custom color palette, a
+  hand-built HTML legend above the chart, and monospace axis labels to match
+  the app's existing type system.
+- What I changed before approving: 
+- Verification: Logged sessions under two subjects, confirmed both appeared
+  as separate colored segments stacked on the correct day. Hovered bars to
+  confirm tooltips showed subject name and minutes.
+- One thing I learned: Chart.js cannot read CSS variables for colors, so you
+  have to hardcode hex values for anything that touches the canvas. Keeping a
+  SUBJECT_COLORS array as the single source of truth for both the chart and
+  the HTML legend is the cleanest way to keep them in sync.
+
+## Task 7 — Weekly bar chart by subject
+- Brief: Render total minutes per subject for the last 7 days as a stacked
+  bar chart using Chart.js.
+- What Claude proposed: Stacked bar chart with a custom color palette, a
+  hand-built HTML legend above the chart, and monospace axis labels to match
+  the app's existing type system.
+- What I changed before approving: Nothing before approving, but caught a bug
+  after: short sessions under a minute were rounding to zero with Math.round(),
+  making bars appear equal height regardless of actual duration. Fixed by
+  switching to toFixed(2) to preserve decimal minutes.
+- Verification: Logged 1 min of Math and 20 sec of History, confirmed bars were
+  proportional to actual time rather than equal height. Hovered bars to confirm
+  tooltips showed correct decimal values.
+- One thing I learned: Chart.js cannot read CSS variables for colors since it
+  renders to a canvas element, which sits outside the normal DOM styling system.
+  Hardcoding hex values and keeping a single SUBJECT_COLORS array as the source
+  of truth for both the chart and the HTML legend is the cleanest way to keep
+  them in sync.
+

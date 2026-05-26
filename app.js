@@ -63,6 +63,7 @@ moodBtns.forEach(btn => {
     showToast('session saved');
     renderLog();
     renderGoalBar();
+    renderWeekChart();
     setTimeout(() => resetTimer(), 800);
   });
 });
@@ -210,9 +211,88 @@ function renderGoalBar() {
   targetLabel.textContent = pct >= 100 ? 'goal reached' : 'goal: 2h';
 }
 
+const SUBJECT_COLORS = [
+  '#a78bfa', '#34d399', '#fb923c', '#60a5fa', '#f472b6', '#facc15', '#4ade80'
+];
+
+let weekChartInstance = null;
+
+function getWeekDays() {
+  const days = [];
+  const today = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    days.push(d);
+  }
+  return days;
+}
+
+function renderWeekChart() {
+  const sessions = loadSessions();
+  const days = getWeekDays();
+  const dayLabels = days.map(d => d.toLocaleDateString('en-US', { weekday: 'short' }));
+
+  const subjects = [...new Set(sessions.map(s => s.subject))];
+
+  const datasets = subjects.map((subject, i) => {
+    const color = SUBJECT_COLORS[i % SUBJECT_COLORS.length];
+    const data = days.map(day => {
+      const dayStr = day.toDateString();
+      const total = sessions
+        .filter(s => s.subject === subject && new Date(s.timestamp).toDateString() === dayStr)
+        .reduce((sum, s) => sum + s.duration, 0);
+      return parseFloat((total / 60000).toFixed(2));
+    });
+    return { label: subject, data, backgroundColor: color, borderRadius: 4, borderSkipped: false };
+  });
+
+  const legend = document.getElementById('chartLegend');
+  legend.innerHTML = subjects.map((s, i) => `
+    <span class="legend-item">
+      <span class="legend-dot" style="background:${SUBJECT_COLORS[i % SUBJECT_COLORS.length]}"></span>
+      ${s}
+    </span>
+  `).join('');
+
+  if (weekChartInstance) weekChartInstance.destroy();
+
+  if (subjects.length === 0) {
+    legend.innerHTML = '<span class="legend-item">no data yet</span>';
+    return;
+  }
+
+  weekChartInstance = new Chart(document.getElementById('weekChart'), {
+    type: 'bar',
+    data: { labels: dayLabels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}m` }
+      }},
+      scales: {
+        x: {
+          stacked: true,
+          ticks: { color: '#71717a', font: { family: 'DM Mono', size: 11 } },
+          grid: { display: false },
+          border: { display: false },
+        },
+        y: {
+          stacked: true,
+          ticks: { color: '#71717a', font: { family: 'DM Mono', size: 11 }, callback: v => v + 'm' },
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          border: { display: false },
+        }
+      }
+    }
+  });
+}
+
 appDate.textContent = new Date().toLocaleDateString('en-US', {
   weekday: 'short', month: 'short', day: 'numeric'
 });
 
 renderLog();
 renderGoalBar();
+renderWeekChart();
