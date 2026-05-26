@@ -64,6 +64,7 @@ moodBtns.forEach(btn => {
     renderLog();
     renderGoalBar();
     renderWeekChart();
+    renderHeatmap();
     setTimeout(() => resetTimer(), 800);
   });
 });
@@ -289,6 +290,65 @@ function renderWeekChart() {
   });
 }
 
+function renderHeatmap() {
+  const sessions = loadSessions();
+  const grid = document.getElementById('heatmapGrid');
+  const monthsEl = document.getElementById('heatmapMonths');
+  const rangeEl = document.getElementById('heatmapRange');
+
+  const WEEKS = 16;
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  const startDate = new Date(today);
+  startDate.setDate(today.getDate() - (WEEKS * 7 - 1));
+  startDate.setHours(0, 0, 0, 0);
+
+  const dayMap = {};
+  sessions.forEach(s => {
+    const key = new Date(s.timestamp).toDateString();
+    dayMap[key] = (dayMap[key] || 0) + s.duration;
+  });
+
+  const maxMs = Math.max(...Object.values(dayMap), 1);
+
+  const days = [];
+  for (let i = 0; i < WEEKS * 7; i++) {
+    const d = new Date(startDate);
+    d.setDate(startDate.getDate() + i);
+    days.push(d);
+  }
+
+  rangeEl.textContent = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+    ' to ' + today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  const monthsSeen = {};
+  const cellWidth = 15;
+  days.forEach((d, i) => {
+    const weekIndex = Math.floor(i / 7);
+    const monthKey = d.getFullYear() + '-' + d.getMonth();
+    if (!monthsSeen[monthKey] && d.getDate() <= 7) {
+      monthsSeen[monthKey] = true;
+      const label = document.createElement('span');
+      label.className = 'heatmap-month-label';
+      label.textContent = d.toLocaleDateString('en-US', { month: 'short' });
+      label.style.left = (weekIndex * cellWidth) + 'px';
+      monthsEl.appendChild(label);
+    }
+  });
+
+  grid.innerHTML = days.map(d => {
+    const key = d.toDateString();
+    const ms = dayMap[key] || 0;
+    const isToday = d.toDateString() === new Date().toDateString();
+    const level = ms === 0 ? 0 : ms < maxMs * 0.25 ? 1 : ms < maxMs * 0.5 ? 2 : ms < maxMs * 0.75 ? 3 : 4;
+    const mins = Math.round(ms / 60000);
+    const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const title = ms > 0 ? `${label}: ${mins}m` : label;
+    return `<div class="heatmap-cell level-${level}${isToday ? ' today' : ''}" title="${title}"></div>`;
+  }).join('');
+}
+
 appDate.textContent = new Date().toLocaleDateString('en-US', {
   weekday: 'short', month: 'short', day: 'numeric'
 });
@@ -296,3 +356,4 @@ appDate.textContent = new Date().toLocaleDateString('en-US', {
 renderLog();
 renderGoalBar();
 renderWeekChart();
+renderHeatmap();

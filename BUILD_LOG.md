@@ -119,3 +119,20 @@
   of truth for both the chart and the HTML legend is the cleanest way to keep
   them in sync.
 
+## Task 8 — Activity heatmap
+- Brief: Render a 16-week grid where each cell's color intensity maps to
+  total study minutes that day, GitHub-style.
+- What Claude proposed: CSS grid flowing column-by-column with 5 intensity
+  levels using purple ramp colors, today highlighted with an outline, month
+  labels positioned absolutely above the grid, and a legend in the bottom right.
+- What I changed before approving: Changed the heatmap to show 16 weeks instead
+  of the originally proposed 12 weeks — more history visible at a glance makes
+  the consistency patterns more meaningful.
+- Verification: Confirmed today's cell had a purple outline. Logged a session
+  and confirmed the cell filled in. Hovered cells to confirm tooltips showed
+  correct dates and times. Checked that empty days showed as dark gray with
+  no label.
+- One thing I learned: CSS grid with grid-auto-flow: column and
+  grid-template-rows: repeat(7, 12px) is the trick that makes the heatmap
+  flow week-by-week automatically without any manual column math, since the
+  browser handles the wrapping instead of you calculating cell positions.
