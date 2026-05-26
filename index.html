@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Study Timer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <span class="app-logo">flow.</span>
+      <span class="app-date" id="appDate"></span>
+    </header>
+
+    <div class="goal-bar-wrap">
+      <div class="goal-bar-track">
+        <div class="goal-bar-fill" id="goalBarFill"></div>
+      </div>
+      <div class="goal-bar-labels">
+        <span class="goal-bar-spent" id="goalSpent">0m today</span>
+        <span class="goal-bar-target" id="goalTarget">goal: 2h</span>
+      </div>
+    </div>
+
+    <main class="timer-section">
+      <div class="timer-display" id="timerDisplay">00:00:00</div>
+      <div class="timer-status" id="timerStatus">ready</div>
+      <div class="timer-controls">
+        <button class="btn btn-primary" id="startStopBtn">Start</button>
+        <button class="btn btn-ghost" id="resetBtn">Reset</button>
+      </div>
+
+      <div class="session-meta" id="sessionMeta">
+        <div class="meta-row">
+          <label class="meta-label" for="subjectSelect">Subject</label>
+          <div class="subject-input-wrap">
+            <select class="meta-select" id="subjectSelect">
+              <option value="">— pick one —</option>
+              <option value="Math">Math</option>
+              <option value="History">History</option>
+              <option value="Science">Science</option>
+              <option value="English">English</option>
+              <option value="CS">CS</option>
+              <option value="__new__">+ Add subject…</option>
+            </select>
+            <input class="meta-input" id="newSubjectInput" type="text" placeholder="Subject name" style="display:none" />
+          </div>
+        </div>
+        <div class="meta-row">
+          <label class="meta-label" for="sessionNotes">Notes</label>
+          <textarea class="meta-textarea" id="sessionNotes" rows="2" placeholder="What are you working on?"></textarea>
+        </div>
+      </div>
+
+      <div class="mood-panel" id="moodPanel">
+        <p class="mood-prompt">How was your energy?</p>
+        <div class="mood-options">
+          <button class="mood-btn" data-mood="1" aria-label="Very low">1</button>
+          <button class="mood-btn" data-mood="2" aria-label="Low">2</button>
+          <button class="mood-btn" data-mood="3" aria-label="Medium">3</button>
+          <button class="mood-btn" data-mood="4" aria-label="High">4</button>
+          <button class="mood-btn" data-mood="5" aria-label="Very high">5</button>
+        </div>
+        <p class="mood-hint">Pick a rating to save the session</p>
+      </div>
+    </main>
+  </div>
+
+  <section class="log-section" id="logSection">
+    <div class="log-header">
+      <span class="log-title">Sessions</span>
+      <span class="log-count" id="logCount"></span>
+    </div>
+    <div class="log-list" id="logList"></div>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
