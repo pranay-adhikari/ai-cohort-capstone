@@ -3,6 +3,8 @@ let elapsed = 0;
 let timerInterval = null;
 let isRunning = false;
 
+const TIMER_STATE_KEY = 'flow_timer_state';
+
 const timerDisplay = document.getElementById('timerDisplay');
 const timerStatus = document.getElementById('timerStatus');
 const startStopBtn = document.getElementById('startStopBtn');
@@ -29,17 +31,87 @@ function saveSession(session) {
   localStorage.setItem('flow_sessions', JSON.stringify(sessions));
 }
 
+function saveTimerState() {
+  localStorage.setItem(TIMER_STATE_KEY, JSON.stringify({
+    startTime,
+    elapsed,
+    isRunning,
+    subject: subjectSelect.value,
+    newSubject: newSubjectInput.value,
+    notes: sessionNotes.value,
+  }));
+}
+
+function clearTimerState() {
+  localStorage.removeItem(TIMER_STATE_KEY);
+}
+
+function restoreTimerState() {
+  try {
+    const raw = localStorage.getItem(TIMER_STATE_KEY);
+    if (!raw) return;
+
+    const state = JSON.parse(raw);
+
+    elapsed = state.elapsed || 0;
+    isRunning = state.isRunning || false;
+    startTime = state.startTime || null;
+
+    subjectSelect.value = state.subject || '';
+    newSubjectInput.value = state.newSubject || '';
+    sessionNotes.value = state.notes || '';
+
+    if (subjectSelect.value === '__new__') {
+      newSubjectInput.style.display = 'block';
+    }
+
+    if (isRunning && startTime) {
+      timerDisplay.classList.add('running');
+      timerStatus.textContent = 'running';
+      timerStatus.classList.add('running');
+      startStopBtn.textContent = 'Stop';
+      startStopBtn.classList.add('active');
+      sessionMeta.classList.add('visible');
+
+      startTicker();
+    } else if (elapsed > 0) {
+      timerDisplay.textContent = formatTime(elapsed);
+      timerStatus.textContent = 'paused';
+      sessionMeta.classList.add('visible');
+      moodPanel.classList.add('visible');
+    }
+
+    tick();
+  } catch (err) {
+    console.error('Failed to restore timer state', err);
+  }
+}
+
+function startTicker() {
+  clearInterval(timerInterval);
+
+  timerInterval = setInterval(() => {
+    tick();
+    saveTimerState();
+  }, 500);
+}
+
 function showToast(msg) {
   let toast = document.getElementById('toast');
+
   if (!toast) {
     toast = document.createElement('div');
     toast.id = 'toast';
     toast.className = 'toast';
     document.querySelector('.app').appendChild(toast);
   }
+
   toast.textContent = msg;
   toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2500);
+
+  setTimeout(() => {
+    toast.classList.remove('show');
+  }, 2500);
 }
 
 let selectedMood = null;
@@ -47,10 +119,13 @@ let selectedMood = null;
 moodBtns.forEach(btn => {
   btn.addEventListener('click', () => {
     moodBtns.forEach(b => b.classList.remove('selected'));
+
     btn.classList.add('selected');
+
     selectedMood = parseInt(btn.dataset.mood);
 
     const { subject, notes } = getSessionMeta();
+
     const session = {
       id: Date.now(),
       timestamp: new Date().toISOString(),
@@ -59,77 +134,140 @@ moodBtns.forEach(btn => {
       notes,
       mood: selectedMood,
     };
+
     saveSession(session);
+
+    clearTimerState();
+
     showToast('session saved');
+
     renderLog();
     renderGoalBar();
     renderWeekChart();
     renderHeatmap();
+
     setTimeout(() => resetTimer(), 800);
   });
 });
 
 function formatTime(ms) {
   const totalSeconds = Math.floor(ms / 1000);
+
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
+
   return [hours, minutes, seconds]
     .map(n => String(n).padStart(2, '0'))
     .join(':');
 }
 
 function tick() {
-  const now = Date.now();
-  const total = elapsed + (now - startTime);
+  let total = elapsed;
+
+  if (isRunning && startTime) {
+    total += Date.now() - startTime;
+  }
+
   timerDisplay.textContent = formatTime(total);
 }
 
 function startTimer() {
   startTime = Date.now();
-  timerInterval = setInterval(tick, 500);
+
   isRunning = true;
+
   timerDisplay.classList.add('running');
+
   timerStatus.textContent = 'running';
   timerStatus.classList.add('running');
+
   startStopBtn.textContent = 'Stop';
   startStopBtn.classList.add('active');
+
   sessionMeta.classList.add('visible');
+
+  moodPanel.classList.remove('visible');
+
+  startTicker();
+
+  tick();
+
+  saveTimerState();
 }
 
 function stopTimer() {
+  if (!isRunning) return;
+
   elapsed += Date.now() - startTime;
+
   clearInterval(timerInterval);
+
   timerInterval = null;
+
   isRunning = false;
+
+  startTime = null;
+
   timerDisplay.classList.remove('running');
+
   timerStatus.textContent = 'paused';
   timerStatus.classList.remove('running');
+
   startStopBtn.textContent = 'Start';
   startStopBtn.classList.remove('active');
+
   moodPanel.classList.add('visible');
+
+  tick();
+
+  saveTimerState();
 }
 
 function resetTimer() {
-  if (isRunning) stopTimer();
+  clearInterval(timerInterval);
+
+  timerInterval = null;
+
   elapsed = 0;
   startTime = null;
+  isRunning = false;
+
   timerDisplay.textContent = '00:00:00';
+
+  timerDisplay.classList.remove('running');
+
   timerStatus.textContent = 'ready';
+  timerStatus.classList.remove('running');
+
+  startStopBtn.textContent = 'Start';
+  startStopBtn.classList.remove('active');
+
   sessionMeta.classList.remove('visible');
+
   moodPanel.classList.remove('visible');
+
   subjectSelect.value = '';
+
   newSubjectInput.style.display = 'none';
+  newSubjectInput.value = '';
+
   sessionNotes.value = '';
+
   selectedMood = null;
+
   moodBtns.forEach(b => b.classList.remove('selected'));
+
+  clearTimerState();
 }
 
 function getSessionMeta() {
   const subject = subjectSelect.value === '__new__'
     ? newSubjectInput.value.trim()
     : subjectSelect.value;
+
   const notes = sessionNotes.value.trim();
+
   return { subject, notes };
 }
 
@@ -140,37 +278,60 @@ subjectSelect.addEventListener('change', () => {
   } else {
     newSubjectInput.style.display = 'none';
   }
+
+  saveTimerState();
 });
 
+newSubjectInput.addEventListener('input', saveTimerState);
+
+sessionNotes.addEventListener('input', saveTimerState);
+
 startStopBtn.addEventListener('click', () => {
-  if (isRunning) stopTimer();
-  else startTimer();
+  if (isRunning) {
+    stopTimer();
+  } else {
+    startTimer();
+  }
 });
 
 resetBtn.addEventListener('click', resetTimer);
 
 function formatDuration(ms) {
   const totalSeconds = Math.floor(ms / 1000);
+
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
+
   if (hours > 0) return `${hours}h ${minutes}m`;
+
   if (minutes > 0) return `${minutes}m ${seconds}s`;
+
   return `${seconds}s`;
 }
 
 function formatTimestamp(iso) {
   const d = new Date(iso);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' · ' +
-    d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric'
+  }) + ' · ' +
+  d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit'
+  });
 }
 
 function renderLog() {
   const sessions = loadSessions().slice().reverse();
+
   const logList = document.getElementById('logList');
   const logCount = document.getElementById('logCount');
 
-  logCount.textContent = sessions.length ? `${sessions.length} total` : '';
+  logCount.textContent = sessions.length
+    ? `${sessions.length} total`
+    : '';
 
   if (sessions.length === 0) {
     logList.innerHTML = '<p class="log-empty">no sessions yet</p>';
@@ -180,11 +341,25 @@ function renderLog() {
   logList.innerHTML = sessions.map(s => `
     <div class="log-item">
       <span class="log-item-subject">${s.subject}</span>
-      <span class="log-item-duration">${formatDuration(s.duration)}</span>
-      ${s.notes ? `<span class="log-item-notes">${s.notes}</span>` : '<span></span>'}
+
+      <span class="log-item-duration">
+        ${formatDuration(s.duration)}
+      </span>
+
+      ${
+        s.notes
+          ? `<span class="log-item-notes">${s.notes}</span>`
+          : '<span></span>'
+      }
+
       <span class="log-item-meta">
-        <span class="log-item-time">${formatTimestamp(s.timestamp)}</span>
-        <span class="log-item-mood">${s.mood}/5</span>
+        <span class="log-item-time">
+          ${formatTimestamp(s.timestamp)}
+        </span>
+
+        <span class="log-item-mood">
+          ${s.mood}/5
+        </span>
       </span>
     </div>
   `).join('');
@@ -194,6 +369,7 @@ const GOAL_MS = 2 * 60 * 60 * 1000;
 
 function getTodayMs() {
   const today = new Date().toDateString();
+
   return loadSessions()
     .filter(s => new Date(s.timestamp).toDateString() === today)
     .reduce((sum, s) => sum + s.duration, 0);
@@ -201,157 +377,341 @@ function getTodayMs() {
 
 function renderGoalBar() {
   const spent = getTodayMs();
-  const pct = Math.min(100, Math.round((spent / GOAL_MS) * 100));
+
+  const pct = Math.min(
+    100,
+    Math.round((spent / GOAL_MS) * 100)
+  );
+
   const fill = document.getElementById('goalBarFill');
+
   const spentLabel = document.getElementById('goalSpent');
+
   const targetLabel = document.getElementById('goalTarget');
 
   fill.style.width = pct + '%';
+
   fill.classList.toggle('complete', pct >= 100);
-  spentLabel.textContent = formatDuration(spent) + ' today';
-  targetLabel.textContent = pct >= 100 ? 'goal reached' : 'goal: 2h';
+
+  spentLabel.textContent =
+    formatDuration(spent) + ' today';
+
+  targetLabel.textContent =
+    pct >= 100
+      ? 'goal reached'
+      : 'goal: 2h';
 }
 
 const SUBJECT_COLORS = [
-  '#a78bfa', '#34d399', '#fb923c', '#60a5fa', '#f472b6', '#facc15', '#4ade80'
+  '#a78bfa',
+  '#34d399',
+  '#fb923c',
+  '#60a5fa',
+  '#f472b6',
+  '#facc15',
+  '#4ade80'
 ];
 
 let weekChartInstance = null;
 
 function getWeekDays() {
   const days = [];
+
   const today = new Date();
+
   for (let i = 6; i >= 0; i--) {
     const d = new Date(today);
+
     d.setDate(today.getDate() - i);
+
     days.push(d);
   }
+
   return days;
 }
 
 function renderWeekChart() {
   const sessions = loadSessions();
-  const days = getWeekDays();
-  const dayLabels = days.map(d => d.toLocaleDateString('en-US', { weekday: 'short' }));
 
-  const subjects = [...new Set(sessions.map(s => s.subject))];
+  const days = getWeekDays();
+
+  const dayLabels = days.map(d =>
+    d.toLocaleDateString('en-US', {
+      weekday: 'short'
+    })
+  );
+
+  const subjects = [
+    ...new Set(sessions.map(s => s.subject))
+  ];
 
   const datasets = subjects.map((subject, i) => {
-    const color = SUBJECT_COLORS[i % SUBJECT_COLORS.length];
+    const color =
+      SUBJECT_COLORS[i % SUBJECT_COLORS.length];
+
     const data = days.map(day => {
       const dayStr = day.toDateString();
+
       const total = sessions
-        .filter(s => s.subject === subject && new Date(s.timestamp).toDateString() === dayStr)
+        .filter(s =>
+          s.subject === subject &&
+          new Date(s.timestamp).toDateString() === dayStr
+        )
         .reduce((sum, s) => sum + s.duration, 0);
+
       return parseFloat((total / 60000).toFixed(2));
     });
-    return { label: subject, data, backgroundColor: color, borderRadius: 4, borderSkipped: false };
+
+    return {
+      label: subject,
+      data,
+      backgroundColor: color,
+      borderRadius: 4,
+      borderSkipped: false
+    };
   });
 
   const legend = document.getElementById('chartLegend');
+
   legend.innerHTML = subjects.map((s, i) => `
     <span class="legend-item">
-      <span class="legend-dot" style="background:${SUBJECT_COLORS[i % SUBJECT_COLORS.length]}"></span>
+      <span
+        class="legend-dot"
+        style="background:${SUBJECT_COLORS[i % SUBJECT_COLORS.length]}"
+      ></span>
+
       ${s}
     </span>
   `).join('');
 
-  if (weekChartInstance) weekChartInstance.destroy();
+  if (weekChartInstance) {
+    weekChartInstance.destroy();
+  }
 
   if (subjects.length === 0) {
-    legend.innerHTML = '<span class="legend-item">no data yet</span>';
+    legend.innerHTML =
+      '<span class="legend-item">no data yet</span>';
+
     return;
   }
 
-  weekChartInstance = new Chart(document.getElementById('weekChart'), {
-    type: 'bar',
-    data: { labels: dayLabels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: {
-        callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}m` }
-      }},
-      scales: {
-        x: {
-          stacked: true,
-          ticks: { color: '#71717a', font: { family: 'DM Mono', size: 11 } },
-          grid: { display: false },
-          border: { display: false },
+  weekChartInstance = new Chart(
+    document.getElementById('weekChart'),
+    {
+      type: 'bar',
+
+      data: {
+        labels: dayLabels,
+        datasets
+      },
+
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+
+        plugins: {
+          legend: {
+            display: false
+          },
+
+          tooltip: {
+            callbacks: {
+              label: ctx =>
+                ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}m`
+            }
+          }
         },
-        y: {
-          stacked: true,
-          ticks: { color: '#71717a', font: { family: 'DM Mono', size: 11 }, callback: v => v + 'm' },
-          grid: { color: 'rgba(255,255,255,0.04)' },
-          border: { display: false },
+
+        scales: {
+          x: {
+            stacked: true,
+
+            ticks: {
+              color: '#71717a',
+              font: {
+                family: 'DM Mono',
+                size: 11
+              }
+            },
+
+            grid: {
+              display: false
+            },
+
+            border: {
+              display: false
+            }
+          },
+
+          y: {
+            stacked: true,
+
+            ticks: {
+              color: '#71717a',
+
+              font: {
+                family: 'DM Mono',
+                size: 11
+              },
+
+              callback: v => v + 'm'
+            },
+
+            grid: {
+              color: 'rgba(255,255,255,0.04)'
+            },
+
+            border: {
+              display: false
+            }
+          }
         }
       }
     }
-  });
+  );
 }
 
 function renderHeatmap() {
   const sessions = loadSessions();
+
   const grid = document.getElementById('heatmapGrid');
-  const monthsEl = document.getElementById('heatmapMonths');
-  const rangeEl = document.getElementById('heatmapRange');
+
+  const monthsEl =
+    document.getElementById('heatmapMonths');
+
+  const rangeEl =
+    document.getElementById('heatmapRange');
+
+  monthsEl.innerHTML = '';
 
   const WEEKS = 16;
+
   const today = new Date();
+
   today.setHours(23, 59, 59, 999);
 
   const startDate = new Date(today);
-  startDate.setDate(today.getDate() - (WEEKS * 7 - 1));
+
+  startDate.setDate(
+    today.getDate() - (WEEKS * 7 - 1)
+  );
+
   startDate.setHours(0, 0, 0, 0);
 
   const dayMap = {};
+
   sessions.forEach(s => {
     const key = new Date(s.timestamp).toDateString();
-    dayMap[key] = (dayMap[key] || 0) + s.duration;
+
+    dayMap[key] =
+      (dayMap[key] || 0) + s.duration;
   });
 
-  const maxMs = Math.max(...Object.values(dayMap), 1);
+  const maxMs = Math.max(
+    ...Object.values(dayMap),
+    1
+  );
 
   const days = [];
+
   for (let i = 0; i < WEEKS * 7; i++) {
     const d = new Date(startDate);
+
     d.setDate(startDate.getDate() + i);
+
     days.push(d);
   }
 
-  rangeEl.textContent = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
-    ' to ' + today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  rangeEl.textContent =
+    startDate.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
+    }) +
+    ' to ' +
+    today.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
+    });
 
   const monthsSeen = {};
+
   const cellWidth = 15;
+
   days.forEach((d, i) => {
     const weekIndex = Math.floor(i / 7);
-    const monthKey = d.getFullYear() + '-' + d.getMonth();
+
+    const monthKey =
+      d.getFullYear() + '-' + d.getMonth();
+
     if (!monthsSeen[monthKey] && d.getDate() <= 7) {
       monthsSeen[monthKey] = true;
+
       const label = document.createElement('span');
+
       label.className = 'heatmap-month-label';
-      label.textContent = d.toLocaleDateString('en-US', { month: 'short' });
-      label.style.left = (weekIndex * cellWidth) + 'px';
+
+      label.textContent =
+        d.toLocaleDateString('en-US', {
+          month: 'short'
+        });
+
+      label.style.left =
+        (weekIndex * cellWidth) + 'px';
+
       monthsEl.appendChild(label);
     }
   });
 
   grid.innerHTML = days.map(d => {
     const key = d.toDateString();
+
     const ms = dayMap[key] || 0;
-    const isToday = d.toDateString() === new Date().toDateString();
-    const level = ms === 0 ? 0 : ms < maxMs * 0.25 ? 1 : ms < maxMs * 0.5 ? 2 : ms < maxMs * 0.75 ? 3 : 4;
+
+    const isToday =
+      d.toDateString() ===
+      new Date().toDateString();
+
+    const level =
+      ms === 0
+        ? 0
+        : ms < maxMs * 0.25
+        ? 1
+        : ms < maxMs * 0.5
+        ? 2
+        : ms < maxMs * 0.75
+        ? 3
+        : 4;
+
     const mins = Math.round(ms / 60000);
-    const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const title = ms > 0 ? `${label}: ${mins}m` : label;
-    return `<div class="heatmap-cell level-${level}${isToday ? ' today' : ''}" title="${title}"></div>`;
+
+    const label =
+      d.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      });
+
+    const title =
+      ms > 0
+        ? `${label}: ${mins}m`
+        : label;
+
+    return `
+      <div
+        class="heatmap-cell level-${level}${isToday ? ' today' : ''}"
+        title="${title}"
+      ></div>
+    `;
   }).join('');
 }
 
-appDate.textContent = new Date().toLocaleDateString('en-US', {
-  weekday: 'short', month: 'short', day: 'numeric'
-});
+appDate.textContent =
+  new Date().toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric'
+  });
+
+restoreTimerState();
 
 renderLog();
 renderGoalBar();
